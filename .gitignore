@@ -1,1 +1,4 @@
 backup-config.json
+bin/
+obj/
+secret.key
