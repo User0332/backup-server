@@ -4,119 +4,128 @@
 	"description": "The client configuration for User0332/backup-server",
 	"type": "object",
 	"properties": {
-		"clientId": {
+		"$schema": {
+			"type": "string",
+			"description": "The path to the JSON schema file for validation."
+		},
+		"ClientId": {
 			"type": "string",
 			"description": "The unique identifier or name for the client."
 		},
-		"serverAddress": {
+		"ServerAddress": {
 			"type": "string",
 			"description": "The address of the backup server to connect to."
 		},
-		"encryptionKey": {
+		"EncryptionKey": {
 			"type": "string",
 			"description": "The path to the AES-GCM encryption key file used for encrypting and authenticating backup data."
 		},
-		"jobs": {
+		"Jobs": {
 			"type": "array",
 			"description": "The list of backup jobs to be handled by the client.",
 			"items": {
 				"type": "object",
 				"properties": {
-					"jobId": {
+					"JobId": {
 						"type": "string",
 						"description": "The unique identifier for the backup job."
 					},
-					"basePath": {
+					"BasePath": {
 						"type": "string",
 						"description": "The base path for the backup job. All file patterns will be relative to this path. This directory will be locked during restore operations."
 					},
-					"filePatterns": {
+					"FilePatterns": {
 						"type": "array",
 						"description": "A list of glob patterns to include in the backup.",
 						"items": {
 							"type": "string"
-						}
+						},
+						"minItems": 1
 					},
-					"interval": {
+					"Interval": {
 						"type": "object",
 						"description": "The interval at which the backup job should run.",
 						"properties": {
-							"unit": {
+							"Unit": {
 								"type": "string",
 								"enum": ["minutes", "hours", "days", "weeks"],
 								"description": "The unit of time for the interval."
 							},
-							"value": {
+							"Value": {
 								"type": "integer",
 								"minimum": 1,
 								"description": "The value of the interval in the specified unit."
 							}
 						},
-						"required": ["unit", "value"]
+						"required": ["Unit", "Value"],
+						"additionalProperties": false
 					},
-					"chunkSize": {
+					"ChunkSize": {
 						"type": "object",
 						"description": "The size of each chunk for the backup.",
 						"properties": {
-							"minKB": {
+							"MinKB": {
 								"type": "integer",
 								"description": "The minimum chunk size in kilobytes.",
 								"minimum": 1
 							},
-							"maxKB": {
+							"MaxKB": {
 								"type": "integer",
 								"description": "The maximum chunk size in kilobytes.",
 								"minimum": 1
 							}
-						}
+						},
+						"additionalProperties": false
 					},
-					"expiryPolicy": {
+					"ExpiryPolicy": {
 						"description": "The policy for expiring old snapshots.",
 						"oneOf": [
 							{
 								"type": "object",
 								"properties": {
-									"maxAge": {
+									"MaxAge": {
 										"type": "object",
 										"description": "The maximum age for backups before they are considered expired.",
 										"properties": {
-											"unit": {
+											"Unit": {
 												"type": "string",
-												"enum": ["days", "weeks", "months", "years"],
+												"enum": ["days", "weeks", "30d-months"],
 												"description": "The unit of time for the maximum age."
 											},
-											"value": {
+											"Value": {
 												"type": "integer",
 												"minimum": 1,
 												"description": "The value of the maximum age in the specified unit."
 											}
 										},
-										"required": ["unit", "value"]
+										"required": ["Unit", "Value"],
+										"additionalProperties": false
 									}
 								},
-								"required": ["maxAge"]
+								"required": ["MaxAge"],
+								"additionalProperties": false
 							},
 							{
 								"type": "object",
 								"properties": {
-									"maxCount": {
+									"MaxCount": {
 										"type": "integer",
 										"minimum": 1,
 										"description": "The maximum number of backups to retain."
 									}
 								},
-								"required": ["maxCount"]
-							},
-							{
-								"type": "string",
-								"enum": ["none"]
+								"required": ["MaxCount"],
+								"additionalProperties": false
 							}
 						]
 					}
 				},
-				"required": ["jobId", "basePath", "filePatterns", "interval", "expiryPolicy"]
+				"minItems": 1,
+				"required": ["JobId", "BasePath", "FilePatterns", "Interval"],
+				"additionalProperties": false
 			}
 		}
 	},
-	"required": ["clientId", "serverAddress", "jobs", "encryptionKey"]
+	"required": ["ClientId", "ServerAddress", "Jobs", "EncryptionKey"],
+	"additionalProperties": false
 }
