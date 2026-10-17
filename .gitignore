@@ -2,3 +2,4 @@ backup-config.json
 bin/
 obj/
 secret.key
+jobqueue.txt

@@ -11,6 +11,11 @@ builder.Services.AddOptions<BackupClientOptions>()
 
 builder.Services.AddSingleton<IValidateOptions<BackupClientOptions>, BackupClientOptionsValidator>();
 
+builder.Services.AddWindowsService(options =>
+{
+	options.ServiceName = "User0332 Backup Client";
+});
+
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

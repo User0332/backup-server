@@ -50,17 +50,104 @@ public class Worker(ILogger<Worker> logger, IOptions<BackupClientOptions> option
 		logger.LogInformation("Configuration:\n{config}", sb.ToString());
 	}
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
+	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+	{
 		LogConfiguration(options.Value);
 
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            if (logger.IsEnabled(LogLevel.Information))
-            {
-                logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
-            }
-            await Task.Delay(1000, stoppingToken);
-        }
-    }
+		PriorityQueue<JobOptions, DateTime> jobQueue = new();
+
+		string[] jobQueueFileLines;
+
+		if (File.Exists("jobqueue.txt") && (jobQueueFileLines = File.ReadAllLines("jobqueue.txt")).Length == options.Value.Jobs.Length)
+		{
+			foreach (var line in jobQueueFileLines)
+			{
+				var parts = line.Split('$');
+
+				if (parts.Length != 2)
+				{
+					logger.LogWarning("Invalid job queue entry: {line}", line);
+					continue;
+				}
+
+				var jobId = parts[0];
+				var executionTimeStr = parts[1];
+
+				if (!DateTime.TryParse(executionTimeStr, out var executionTime))
+				{
+					logger.LogWarning("Invalid execution time for job '{jobId}': {executionTimeStr}", jobId, executionTimeStr);
+					continue;
+				}
+
+				var job = options.Value.Jobs.First(j => j.JobId == jobId);
+
+				if (job is null)
+				{
+					logger.LogWarning("Job '{jobId}' not found in configuration", jobId);
+					continue;
+				}
+
+				jobQueue.Enqueue(job, executionTime);
+			}
+		}
+		else
+		{
+			string[] lines = new string[options.Value.Jobs.Length];
+
+			for (int i = 0; i < options.Value.Jobs.Length; i++)
+			{
+				var job = options.Value.Jobs[i];
+				var nextExecutionTime = DateTime.Now + job.Interval.ToTimeSpan();
+
+				jobQueue.Enqueue(job, nextExecutionTime);
+				lines[i] = $"{job.JobId}${nextExecutionTime}";
+			}
+
+			File.WriteAllLines("jobqueue.txt", lines);
+		}
+
+		while (!stoppingToken.IsCancellationRequested)
+		{
+			if (jobQueue.TryPeek(out var pendingJob, out var executionTime))
+			{
+				var now = DateTime.Now;
+
+				logger.LogInformation("Next job '{jobId}' scheduled for {executionTime}, current time is {now}", pendingJob.JobId, executionTime, now);
+
+				if (executionTime <= now)
+				{
+					jobQueue.Dequeue();
+
+					logger.LogInformation("Executing job '{jobId}' at {time}", pendingJob.JobId, now);
+
+					// execute job
+
+
+					// reschedule job
+					var newExecutionTime = now + pendingJob.Interval.ToTimeSpan();
+
+					jobQueue.Enqueue(pendingJob, newExecutionTime);
+
+					// update job queue file
+					var newLines = File.ReadAllLines("jobqueue.txt");
+
+					var lineIndex = Array.FindIndex(newLines, l => l.StartsWith(pendingJob.JobId + '$'));
+
+					if (lineIndex >= 0)
+					{
+						newLines[lineIndex] = $"{pendingJob.JobId}${newExecutionTime}";
+					}
+
+					File.WriteAllLines("jobqueue.txt", newLines);
+				}
+				else
+				{
+					int msTillNextJob = (int) (executionTime - now).TotalMilliseconds;
+					int sleepDuration = Math.Min(msTillNextJob, 1000*300); // sleep for up to 5 minutes
+
+					await Task.Delay(sleepDuration, stoppingToken);
+				}
+			}
+		}
+	}
 }
