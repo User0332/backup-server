@@ -80,49 +80,33 @@
 					},
 					"ExpiryPolicy": {
 						"description": "The policy for expiring old snapshots.",
-						"oneOf": [
-							{
+						"type": "object",
+						"properties": {
+							"MaxAge": {
 								"type": "object",
+								"description": "The maximum age for backups before they are considered expired.",
 								"properties": {
-									"MaxAge": {
-										"type": "object",
-										"description": "The maximum age for backups before they are considered expired.",
-										"properties": {
-											"Unit": {
-												"type": "string",
-												"enum": ["days", "weeks", "30d-months"],
-												"description": "The unit of time for the maximum age."
-											},
-											"Value": {
-												"type": "integer",
-												"minimum": 1,
-												"description": "The value of the maximum age in the specified unit."
-											}
-										},
-										"required": ["Unit", "Value"],
-										"additionalProperties": false
-									}
-								},
-								"required": ["MaxAge"],
-								"additionalProperties": false
-							},
-							{
-								"type": "object",
-								"properties": {
-									"MaxCount": {
+									"Unit": {
+										"type": "string",
+										"enum": ["days", "weeks", "30d-months"],
+										"description": "The unit of time for the maximum age."
+									},
+									"Value": {
 										"type": "integer",
 										"minimum": 1,
-										"description": "The maximum number of backups to retain."
+										"description": "The value of the maximum age in the specified unit."
 									}
 								},
-								"required": ["MaxCount"],
+								"required": ["Unit", "Value"],
 								"additionalProperties": false
 							}
-						]
+						},
+						"required": ["MaxAge"],
+						"additionalProperties": false
 					}
 				},
 				"minItems": 1,
-				"required": ["JobId", "BasePath", "FilePatterns", "Interval"],
+				"required": ["JobId", "BasePath", "FilePatterns", "Interval", "ExpiryPolicy"],
 				"additionalProperties": false
 			}
 		}

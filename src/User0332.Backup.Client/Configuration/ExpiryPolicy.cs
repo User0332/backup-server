@@ -2,6 +2,5 @@ namespace User0332.Backup.Client.Configuration;
 
 public class ExpiryPolicy
 {
-	public TimeConfiguration? MaxAge { get; set; }
-	public int? MaxCount { get; set; } = 0;
+	public required TimeConfiguration MaxAge { get; set; }
 }
