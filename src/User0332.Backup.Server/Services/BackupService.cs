@@ -40,10 +40,25 @@ public class BackupService(ILogger<BackupService> logger, ServerLockManager lock
 					case StoreChunkRequest.PayloadOneofCase.ChunkOfChunk:
 						if (fileStream == null)
 						{
-							throw new InvalidOperationException("Received chunk data before receiving chunk hash.");
+							return new StoreChunkReply
+							{
+								Success = false,
+								Error = "ChunkHash must be sent before ChunkOfChunk."
+							};
 						}
 
-						await fileStream.WriteAsync(request.ChunkOfChunk.Memory, context.CancellationToken);
+						var hash = TransitIntegrityUtils.CalculateTransitHash(request.ChunkOfChunk.Data.Span);
+
+						if (hash != request.ChunkOfChunk.TransitHash)
+						{
+							return new StoreChunkReply
+							{
+								Success = false,
+								Error = "Transit hash mismatch."
+							};
+						}
+
+						await fileStream.WriteAsync(request.ChunkOfChunk.Data.Memory, context.CancellationToken);
 
 						break;
 				}
@@ -86,9 +101,19 @@ public class BackupService(ILogger<BackupService> logger, ServerLockManager lock
 	{
 		logger.LogInformation("Storing snapshot {snapshotId}.", request.SnapshotId);
 
+		var transitHash = TransitIntegrityUtils.CalculateTransitHash(request.EncryptedManifest.Span);
+
+		if (transitHash != request.ManifestTransitHash)
+		{
+			return new StoreSnapshotReply
+			{
+				Success = false,
+				Error = "Manifest transit hash mismatch."
+			};
+		}
+
 		using (await lockManager.AcquireDatabaseLockAsync(context.CancellationToken))
 		{
-
 			var snapshotRecord = new Models.SnapshotRecord
 			{
 				SnapshotId = request.SnapshotId,

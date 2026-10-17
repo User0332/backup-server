@@ -1,21 +1,67 @@
+using System.Security.Cryptography;
 using Grpc.Net.Client;
 using User0332.Backup.Shared;
+using User0332.Backup.Shared.ClientOnly;
 using User0332.Backup.Shared.ClientOnly.Models;
 
 namespace User0332.Backup.RestorationTool;
 
 public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, MinimalConfig config)
 {
+	const int MaxFetchRetries = 4;
+	readonly Restore.RestoreClient _client = new(channel);
+	readonly AesGcm	_aes = new(File.ReadAllBytes(config.EncryptionKey), 16);
+
 	public async Task<List<string>> ListSnapshots(string? clientIdFilter, string? jobIdFilter)
 	{
-		return [];
+		var req = new ListSnapshotsRequest
+		{
+			ClientId = clientIdFilter ?? string.Empty,
+			JobId = jobIdFilter ?? string.Empty
+		};
+
+		var resp = await _client.ListSnapshotsAsync(req);
+
+		return [.. resp.SnapshotIds];
 	}
 
 	public async Task RestoreSnapshot(string snapshotId)
 	{
 		string stagingDirectory = Path.Combine(Path.GetTempPath(), "User0332.Backup.RestorationTool", snapshotId);
+		Directory.CreateDirectory(stagingDirectory);
 
-		SnapshotManifest manifest = null!; // download from server
+		SnapshotManifest manifest = null!;
+
+		for (int attempt = 0; attempt < MaxFetchRetries; attempt++)
+		{
+			try
+			{
+				var req = new FetchManifestRequest { SnapshotId = snapshotId };
+				var resp = await _client.FetchManifestAsync(req);
+
+				if (!resp.Success)
+				{
+					Console.WriteLine($"Failed to fetch manifest for snapshot {snapshotId}.");
+					continue;
+				}
+
+				byte[] decrypted = EncryptionUtils.DecryptChunk(resp.Manifest.ToByteArray(), _aes);
+
+				string manifestJson = System.Text.Encoding.UTF8.GetString(decrypted);
+				manifest = SnapshotManifest.FromJson(manifestJson);
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"Attempt {attempt + 1} to fetch manifest failed: {ex.Message}");
+				await Task.Delay(1000 * attempt); // backoff
+			}
+		}
+
+		if (manifest == null)
+		{
+			Console.WriteLine($"Failed to fetch manifest for snapshot {snapshotId} after {MaxFetchRetries} attempts.");
+			return;
+		}
 
 		var snapshotRecord = await db.Snapshots.FindAsync(snapshotId);
 
@@ -50,13 +96,17 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, M
 
 		foreach (var file in manifest.Files)
 		{
+			int filePos = 0;
+
 			if (preservedFiles.Contains(Path.Combine(manifest.BasePath, file.RelativePath)))
 			{
 				Console.WriteLine($"Preserving file: {file.RelativePath}");
 				continue;
 			}
 
-			using FileStream destStream = new(Path.Combine(stagingDirectory, file.RelativePath), FileMode.Create, FileAccess.Write);
+			string destPath = Path.Combine(stagingDirectory, file.RelativePath);
+
+			using FileStream destStream = new(destPath, FileMode.Create, FileAccess.Write);
 
 			foreach (var chunkHash in file.Chunks)
 			{
@@ -70,12 +120,42 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, M
 
 					sourceStream.CopyTo(destStream, chunkInfo.Size);
 					sourceStream.Close();
+
+					filePos += chunkInfo.Size;
 				}
 				else
 				{
 					Console.WriteLine($"Downloading chunk {chunkHash} for file {file.RelativePath}");
 
+					int chunkStartOffset = filePos;
 
+					for (int i = 0; i < MaxFetchRetries; i++)
+					{
+						try
+						{
+							var request = new DownloadChunkRequest { ChunkHash = chunkHash };
+							var response = _client.DownloadChunk(request);
+
+							while (await response.ResponseStream.MoveNext(CancellationToken.None))
+							{
+								var chunkData = response.ResponseStream.Current.ChunkOfChunk.ToByteArray();
+								byte[] decryptedChunk = EncryptionUtils.DecryptChunk(chunkData, _aes);
+								destStream.Write(decryptedChunk, 0, decryptedChunk.Length);
+
+								filePos += decryptedChunk.Length;
+							}
+						}
+						catch (Exception ex)
+						{
+							Console.WriteLine($"Attempt {i + 1} to download chunk {chunkHash} failed: {ex.Message}");
+							await Task.Delay(1000 * i); // backoff
+							continue;
+						}
+					}
+
+					int chunkSize = filePos - chunkStartOffset;
+
+					chunkFileMap[chunkHash] = (destPath, chunkStartOffset, chunkSize);
 				}
 			}
 

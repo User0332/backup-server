@@ -23,8 +23,13 @@ message ChunkExistsReply {
 message StoreChunkRequest {
 	oneof payload {
 		uint32 chunk_hash = 1;
-		bytes chunk_of_chunk = 2;
+		ChunkOfChunk chunk_of_chunk = 2;
 	}
+}
+
+message ChunkOfChunk {
+	bytes data = 1;
+	uint32 transit_hash = 2;
 }
 
 message StoreChunkReply {
@@ -38,8 +43,9 @@ message StoreSnapshotRequest {
 	string job_id = 3;
 	repeated uint32 chunks = 4;
 	bytes encrypted_manifest = 5;
-	google.protobuf.Timestamp created_at = 6;
-	google.protobuf.Timestamp expires_at = 7;
+	uint32 manifest_transit_hash = 6;
+	google.protobuf.Timestamp created_at = 7;
+	google.protobuf.Timestamp expires_at = 8;
 }
 
 message StoreSnapshotReply {
