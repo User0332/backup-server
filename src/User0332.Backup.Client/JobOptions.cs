@@ -7,5 +7,5 @@ public class JobOptions
 	public required string[] FilePatterns { get; set; }
 	public required TimeConfiguration Interval { get; set; }
 	public ExpiryPolicy? ExpiryPolicy { get; set; }
-
+	public ChunkSizeConstraint ChunkSize { get; set; } = new();
 }
