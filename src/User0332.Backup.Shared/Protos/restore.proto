@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+option csharp_namespace = "User0332.Backup.Shared";
+
+package restore;
+
+service Restore {
+  rpc ListSnapshots (ListSnapshotsRequest) returns (ListSnapshotsReply);
+  rpc FetchManifest (FetchManifestRequest) returns (FetchManifestReply);
+  rpc DownloadChunk (DownloadChunkRequest) returns (stream DownloadChunkReply);
+}
+
+message ListSnapshotsRequest {
+  string client_id = 1;
+  string job_id = 2;
+}
+
+message ListSnapshotsReply {
+  repeated string snapshot_ids = 1;
+}
+
+message FetchManifestRequest {
+	string snapshot_id = 1;
+}
+
+message FetchManifestReply {
+	bool success = 1;
+	bytes manifest = 2;
+}
+
+message DownloadChunkRequest {
+	uint32 chunk_hash = 1;
+}
+
+message DownloadChunkReply {
+	bytes chunk_of_chunk = 1;
+}

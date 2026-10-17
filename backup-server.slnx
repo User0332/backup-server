@@ -1,6 +1,9 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/User0332.Backup.Client/User0332.Backup.Client.csproj" />
+    <Project Path="src/User0332.Backup.RestorationTool/User0332.Backup.RestorationTool.csproj" />
     <Project Path="src/User0332.Backup.Server/User0332.Backup.Server.csproj" />
+    <Project Path="src/User0332.Backup.Shared.ClientOnly/User0332.Backup.Shared.ClientOnly.csproj" />
+    <Project Path="src/User0332.Backup.Shared/User0332.Backup.Shared.csproj" />
   </Folder>
 </Solution>

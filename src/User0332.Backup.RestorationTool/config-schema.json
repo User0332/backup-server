@@ -1,0 +1,116 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "Backup Client Configuration",
+	"description": "The client configuration for User0332/backup-server",
+	"type": "object",
+	"properties": {
+		"$schema": {
+			"type": "string",
+			"description": "The path to the JSON schema file for validation."
+		},
+		"ClientId": {
+			"type": "string",
+			"description": "The unique identifier or name for the client."
+		},
+		"ServerAddress": {
+			"type": "string",
+			"description": "The address of the backup server to connect to."
+		},
+		"EncryptionKey": {
+			"type": "string",
+			"description": "The path to the AES-GCM encryption key file used for encrypting and authenticating backup data."
+		},
+		"Jobs": {
+			"type": "array",
+			"description": "The list of backup jobs to be handled by the client.",
+			"items": {
+				"type": "object",
+				"properties": {
+					"JobId": {
+						"type": "string",
+						"description": "The unique identifier for the backup job."
+					},
+					"BasePath": {
+						"type": "string",
+						"description": "The base path for the backup job. All file patterns will be relative to this path. This directory will be locked during restore operations."
+					},
+					"FilePatterns": {
+						"type": "array",
+						"description": "A list of glob patterns to include in the backup.",
+						"items": {
+							"type": "string"
+						},
+						"minItems": 1
+					},
+					"Interval": {
+						"type": "object",
+						"description": "The interval at which the backup job should run.",
+						"properties": {
+							"Unit": {
+								"type": "string",
+								"enum": ["minutes", "hours", "days", "weeks"],
+								"description": "The unit of time for the interval."
+							},
+							"Value": {
+								"type": "integer",
+								"minimum": 1,
+								"description": "The value of the interval in the specified unit."
+							}
+						},
+						"required": ["Unit", "Value"],
+						"additionalProperties": false
+					},
+					"ChunkSize": {
+						"type": "object",
+						"description": "The size of each chunk for the backup.",
+						"properties": {
+							"MinKB": {
+								"type": "integer",
+								"description": "The minimum chunk size in kilobytes.",
+								"minimum": 1
+							},
+							"MaxKB": {
+								"type": "integer",
+								"description": "The maximum chunk size in kilobytes.",
+								"minimum": 1
+							}
+						},
+						"required": ["MinKB", "MaxKB"],
+						"additionalProperties": false
+					},
+					"ExpiryPolicy": {
+						"description": "The policy for expiring old snapshots.",
+						"type": "object",
+						"properties": {
+							"MaxAge": {
+								"type": "object",
+								"description": "The maximum age for backups before they are considered expired.",
+								"properties": {
+									"Unit": {
+										"type": "string",
+										"enum": ["days", "weeks", "30d-months"],
+										"description": "The unit of time for the maximum age."
+									},
+									"Value": {
+										"type": "integer",
+										"minimum": 1,
+										"description": "The value of the maximum age in the specified unit."
+									}
+								},
+								"required": ["Unit", "Value"],
+								"additionalProperties": false
+							}
+						},
+						"required": ["MaxAge"],
+						"additionalProperties": false
+					}
+				},
+				"minItems": 1,
+				"required": ["JobId", "BasePath", "FilePatterns", "Interval", "ExpiryPolicy"],
+				"additionalProperties": false
+			}
+		}
+	},
+	"required": ["ClientId", "ServerAddress", "Jobs", "EncryptionKey"],
+	"additionalProperties": false
+}

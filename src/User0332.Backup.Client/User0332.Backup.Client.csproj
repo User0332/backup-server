@@ -26,4 +26,8 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\User0332.Backup.Shared.ClientOnly\User0332.Backup.Shared.ClientOnly.csproj" />
+  </ItemGroup>
+
 </Project>

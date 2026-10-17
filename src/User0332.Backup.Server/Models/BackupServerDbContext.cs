@@ -17,7 +17,7 @@ public class BackupServerDbContext(DbContextOptions<BackupServerDbContext> optio
 public class ChunkRecord
 {
 	public required uint IdentityHash { get; set; } // the identity hash
-	public required string FileName { get; set; } = string.Empty;
+	public required string FilePath { get; set; } = string.Empty;
 	public required int RefCount { get; set; } // how many snapshots reference this chunk
 	public ICollection<SnapshotRecord> Snapshots { get; set; } = [];
 }

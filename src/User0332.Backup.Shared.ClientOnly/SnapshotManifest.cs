@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace User0332.Backup.Client.JobExecution;
+namespace User0332.Backup.Shared;
 
 public class SnapshotManifest
 {

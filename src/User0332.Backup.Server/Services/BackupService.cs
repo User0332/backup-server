@@ -1,10 +1,13 @@
 using Grpc.Core;
 using User0332.Backup.Server.Repositories;
+using User0332.Backup.Shared;
 
 namespace User0332.Backup.Server.Services;
 
-public class BackupService(ILogger<BackupService> logger, IBackupRepository repository) : Backup.BackupBase
+public class BackupService(ILogger<BackupService> logger, ServerLockManager lockManager, IConfiguration config, IBackupRepository repository) : Shared.Backup.BackupBase
 {
+	readonly string TargetDirectory = config["BackupStoragePath"] ?? throw new InvalidOperationException("BackupStoragePath is not configured.");
+
 	public override async Task<ChunkExistsReply> ChunkExists(ChunkExistsRequest request, ServerCallContext context)
 	{
 		return new ChunkExistsReply
@@ -16,7 +19,7 @@ public class BackupService(ILogger<BackupService> logger, IBackupRepository repo
 	public override async Task<StoreChunkReply> StoreChunk(IAsyncStreamReader<StoreChunkRequest> requestStream, ServerCallContext context)
 	{
 		FileStream? fileStream = null;
-		string targetDirectory = null!;
+		uint chunkHash = 0;
 
 		try
 		{
@@ -29,9 +32,9 @@ public class BackupService(ILogger<BackupService> logger, IBackupRepository repo
 					case StoreChunkRequest.PayloadOneofCase.ChunkHash:
 						logger.LogInformation("Storing chunk {hash}.", request.ChunkHash);
 
-						string fileName = $"{request.ChunkHash}.chunk";
+						string fileName = $"{chunkHash}.chunk";
 
-						fileStream = new FileStream(Path.Combine(targetDirectory, fileName), FileMode.Create, FileAccess.Write);
+						fileStream = new FileStream(Path.Combine(TargetDirectory, fileName), FileMode.Create, FileAccess.Write);
 
 						break;
 					case StoreChunkRequest.PayloadOneofCase.ChunkOfChunk:
@@ -46,12 +49,15 @@ public class BackupService(ILogger<BackupService> logger, IBackupRepository repo
 				}
 			}
 
-			await repository.AddChunkAsync(new Models.ChunkRecord
+			using (await lockManager.AcquireDatabaseLockAsync(context.CancellationToken))
 			{
-				IdentityHash = requestStream.Current.ChunkHash,
-				FileName = $"{requestStream.Current.ChunkHash}.chunk",
-				RefCount = 0
-			}, context.CancellationToken);
+				await repository.AddChunkAsync(new Models.ChunkRecord
+				{
+					IdentityHash = chunkHash,
+					FilePath = fileStream!.Name,
+					RefCount = -1 // placeholder, when a snapshot is stored, the refcount will be updated to the correct value
+				}, context.CancellationToken);
+			}
 
 			return new StoreChunkReply
 			{
@@ -78,26 +84,31 @@ public class BackupService(ILogger<BackupService> logger, IBackupRepository repo
 
 	public override async Task<StoreSnapshotReply> StoreSnapshot(StoreSnapshotRequest request, ServerCallContext context)
 	{
-		var snapshotId = $"{request.ClientId}-{request.JobId}-{request.CreatedAt.ToDateTime():yyyyMMddHHmmss}";
+		logger.LogInformation("Storing snapshot {snapshotId}.", request.SnapshotId);
 
-		logger.LogInformation("Storing snapshot {snapshotId}.", snapshotId);
-
-		var snapshotRecord = new Models.SnapshotRecord
+		using (await lockManager.AcquireDatabaseLockAsync(context.CancellationToken))
 		{
-			SnapshotId = snapshotId,
-			ClientId = request.ClientId,
-			JobId = request.JobId,
-			Chunks = await Task.WhenAll(
-				request.Chunks.Select(
-					async (hash) => await repository.GetChunkAsync(hash, context.CancellationToken)
-				)
-			),
-			EncryptedManifest = request.EncryptedManifest.ToByteArray(),
-			CreatedAt = request.CreatedAt.ToDateTimeOffset(),
-			ExpiresAt = request.ExpiresAt.ToDateTimeOffset(),
-		};
 
-		await repository.StoreSnapshotAsync(snapshotRecord, context.CancellationToken);
+			var snapshotRecord = new Models.SnapshotRecord
+			{
+				SnapshotId = request.SnapshotId,
+				ClientId = request.ClientId,
+				JobId = request.JobId,
+				Chunks = await Task.WhenAll(
+					request.Chunks.Select(
+						async (hash) => {
+							var res = await repository.GetChunkAsync(hash, context.CancellationToken) ?? throw new RpcException(new Status(StatusCode.NotFound, $"Chunk {hash} not found."));
+							return res;
+						}
+					)
+				),
+				EncryptedManifest = request.EncryptedManifest.ToByteArray(),
+				CreatedAt = request.CreatedAt.ToDateTimeOffset(),
+				ExpiresAt = request.ExpiresAt.ToDateTimeOffset(),
+			};
+
+			await repository.StoreSnapshotAsync(snapshotRecord, context.CancellationToken);
+		}
 
 		return new StoreSnapshotReply
 		{

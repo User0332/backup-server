@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option csharp_namespace = "User0332.Backup.Server";
+option csharp_namespace = "User0332.Backup.Shared";
 
 import "google/protobuf/timestamp.proto";
 
@@ -33,6 +33,7 @@ message StoreChunkReply {
 }
 
 message StoreSnapshotRequest {
+	string snapshot_id = 1;
 	string client_id = 2;
 	string job_id = 3;
 	repeated uint32 chunks = 4;
