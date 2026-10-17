@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+option csharp_namespace = "User0332.Backup.Server";
+
+import "google/protobuf/timestamp.proto";
+
+package backup;
+
+service Backup {
+  rpc ChunkExists (ChunkExistsRequest) returns (ChunkExistsReply);
+  rpc StoreChunk (stream StoreChunkRequest) returns (StoreChunkReply);
+  rpc StoreSnapshot (StoreSnapshotRequest) returns (StoreSnapshotReply);
+}
+
+message ChunkExistsRequest {
+  uint32 hash = 1;
+}
+
+message ChunkExistsReply {
+  bool exists = 1;
+}
+
+message StoreChunkRequest {
+	oneof payload {
+		uint32 chunk_hash = 1;
+		bytes chunk_of_chunk = 2;
+	}
+}
+
+message StoreChunkReply {
+	bool success = 1;
+	string error = 2;
+}
+
+message StoreSnapshotRequest {
+	string client_id = 2;
+	string job_id = 3;
+	repeated uint32 chunks = 4;
+	bytes encrypted_manifest = 5;
+	google.protobuf.Timestamp created_at = 6;
+	google.protobuf.Timestamp expires_at = 7;
+}
+
+message StoreSnapshotReply {
+	bool success = 1;
+	string error = 2;
+}

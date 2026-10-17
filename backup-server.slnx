@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/User0332.Backup.Client/User0332.Backup.Client.csproj" />
+    <Project Path="src/User0332.Backup.Server/User0332.Backup.Server.csproj" />
   </Folder>
 </Solution>
