@@ -1,0 +1,28 @@
+using System.Text.Json;
+
+namespace User0332.Backup.Client.JobExecution;
+
+public class SnapshotManifest
+{
+	public required string JobId { get; init; }
+	public required long SnapshotTimestamp { get; init; }
+	public required string BasePath { get; init; }
+	public required ManifestFileEntry[] Files { get; init; }
+
+	public string ToJson()
+	{
+		return JsonSerializer.Serialize(this);
+	}
+
+	public static SnapshotManifest FromJson(string json)
+	{
+		return JsonSerializer.Deserialize<SnapshotManifest>(json) ?? throw new InvalidOperationException("Failed to deserialize SnapshotManifest from JSON.");
+	}
+}
+
+public class ManifestFileEntry
+{
+	public required string RelativePath { get; init; }
+	public required long FileSize { get; init; }
+	public required uint[] Chunks { get; init; }
+}

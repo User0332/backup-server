@@ -2,7 +2,7 @@ using System.Text.Json;
 using Json.Schema;
 using Microsoft.Extensions.Options;
 
-namespace User0332.Backup.Client;
+namespace User0332.Backup.Client.Configuration;
 
 public class BackupClientOptionsValidator : IValidateOptions<BackupClientOptions>
 {
