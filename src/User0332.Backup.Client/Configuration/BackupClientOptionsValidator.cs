@@ -9,9 +9,9 @@ public class BackupClientOptionsValidator : IValidateOptions<BackupClientOptions
 {
 	public ValidateOptionsResult Validate(string? name, BackupClientOptions options)
 	{
-		var schema = JsonSchema.FromText(File.ReadAllText("config-schema.json"));
+		var schema = JsonSchema.FromText(File.ReadAllText(Constants.BackupClientConfigSchemaFilePath));
 
-		var doc = JsonDocument.Parse(File.ReadAllText("backup-config.json"));
+		var doc = JsonDocument.Parse(File.ReadAllText(Constants.BackupClientConfigFilePath));
 
 		var result = schema.Evaluate(doc.RootElement, new EvaluationOptions { OutputFormat = OutputFormat.Hierarchical });
 

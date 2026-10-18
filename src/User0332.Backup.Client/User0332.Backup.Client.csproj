@@ -17,16 +17,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="backup-config.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-
-    <None Update="config-schema.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\User0332.Backup.Shared.ClientOnly\User0332.Backup.Shared.ClientOnly.csproj" />
   </ItemGroup>
 
