@@ -18,6 +18,11 @@ public class SnapshotManifest
 	{
 		return JsonSerializer.Deserialize<SnapshotManifest>(json) ?? throw new InvalidOperationException("Failed to deserialize SnapshotManifest from JSON.");
 	}
+
+	public string GetSnapshotId(string clientId)
+	{
+		return $"{clientId}-{JobId}-{DateTime.FromFileTimeUtc(SnapshotTimestamp)}";
+	}
 }
 
 public class ManifestFileEntry

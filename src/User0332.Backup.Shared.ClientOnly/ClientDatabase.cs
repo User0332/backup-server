@@ -12,7 +12,7 @@ public static class ClientDatabase
 
 		var db = new BackupClientDbContext(optionsBuilder.Options);
 
-		await db.Database.EnsureCreatedAsync();
+		await db.Database.MigrateAsync();
 
 		return db;
 	}

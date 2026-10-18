@@ -16,6 +16,13 @@ builder.Services.AddHostedService<SnapshotCleanupWorker>();
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+	var dbContext = scope.ServiceProvider.GetRequiredService<BackupServerDbContext>();
+
+	dbContext.Database.Migrate();
+}
+
 // Configure the HTTP request pipeline.
 app.MapGrpcService<BackupService>();
 app.MapGrpcService<RestoreService>();

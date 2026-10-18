@@ -15,7 +15,7 @@ public class RequestHelper(BackupClientOptions options, GrpcChannel channel)
 
 	const int MaxTransmitChunkSize = 64 * 1024; // 64 KB
 
-	public async Task<(bool Success, string Error)> EncryptTransmitSnapshotManifest(SnapshotManifest manifest, DateTimeOffset expiresAt, HashSet<uint> aggregatedChunkList)
+	public async Task<(bool Success, string Error)> EncryptAndTransmitSnapshotManifest(SnapshotManifest manifest, DateTimeOffset expiresAt, HashSet<uint> aggregatedChunkList)
 	{
 		byte[] manifestSerialized = Encoding.UTF8.GetBytes(manifest.ToJson());
 
@@ -25,6 +25,7 @@ public class RequestHelper(BackupClientOptions options, GrpcChannel channel)
 		// send to server...
 		var req = new StoreSnapshotRequest
 		{
+			SnapshotId = manifest.GetSnapshotId(_clientId),
 			ClientId = _clientId,
 			JobId = manifest.JobId,
 			ManifestTransitHash = manifestTransitHash,

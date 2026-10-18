@@ -2,6 +2,8 @@ using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
 using User0332.Backup.Client.Configuration;
 using User0332.Backup.Shared;
+using User0332.Backup.Shared.ClientOnly;
+using User0332.Backup.Shared.ClientOnly.Models;
 using ZstdSharp;
 
 namespace User0332.Backup.Client.JobExecution;
@@ -10,6 +12,7 @@ public class Job
 {
 	const int MaxRetries = 4;
 
+	readonly string _clientId;
 	readonly string _jobId;
 	readonly string _basePath;
 	readonly string[] _filePatterns;
@@ -20,8 +23,9 @@ public class Job
 	readonly Matcher _matcher = new();
 	readonly ILogger<Worker> _logger;
 
-	public Job(JobOptions options, RequestHelper client, ILogger<Worker> logger)
+	public Job(string clientId, JobOptions options, RequestHelper client, ILogger<Worker> logger)
 	{
+		_clientId = clientId;
 		_jobId = options.JobId;
 		_basePath = options.BasePath;
 		_filePatterns = [..options.FilePatterns];
@@ -36,6 +40,8 @@ public class Job
 	public async Task Execute()
 	{
 		List<ManifestFileEntry> manifestFiles = [];
+		Dictionary<ManifestFileEntry, DateTime> modifiedTimes = [];
+		Dictionary<ManifestFileEntry, List<(int Size, uint IdentityHash)>> chunkInfoMap = [];
 		HashSet<uint> aggregatedChunkHashes = [];
 
 		foreach (var pattern in _filePatterns)
@@ -49,18 +55,25 @@ public class Job
 			{
 				string relativePath = Path.GetRelativePath(_basePath, file);
 
+				var writeTime = File.GetLastWriteTimeUtc(file);
+
 				using var fileStream = new FileStream(file, FileMode.Open, FileAccess.Read);
 
-				var chunkHashes = await TransmitFile(fileStream, relativePath);
+				var chunkInfo = await TransmitFile(fileStream, relativePath);
 
-				manifestFiles.Add(new ManifestFileEntry
+				var entry = new ManifestFileEntry
 				{
 					RelativePath = relativePath,
-					Chunks = [..chunkHashes],
+					Chunks = [..chunkInfo.Select(c => c.IdentityHash)],
 					FileSize = fileStream.Length
-				});
+				};
 
-				aggregatedChunkHashes.UnionWith(chunkHashes);
+				manifestFiles.Add(entry);
+
+				modifiedTimes[entry] = writeTime;
+				chunkInfoMap[entry] = chunkInfo;
+
+				aggregatedChunkHashes.UnionWith(entry.Chunks);
 			}
 		}
 
@@ -71,7 +84,7 @@ public class Job
 			SnapshotTimestamp = snapshotCreationTime.ToUnixTimeSeconds(),
 			JobId = _jobId,
 			BasePath = _basePath,
-			Files = [..manifestFiles]
+			Files = [..manifestFiles],
 		};
 
 		DateTimeOffset expiresAt = snapshotCreationTime + _expiryPolicy.MaxAge.ToTimeSpan();
@@ -80,9 +93,13 @@ public class Job
 		{
 			try
 			{
-				var (success, error) = await _client.EncryptTransmitSnapshotManifest(manifest, expiresAt, aggregatedChunkHashes);
+				var (success, error) = await _client.EncryptAndTransmitSnapshotManifest(manifest, expiresAt, aggregatedChunkHashes);
 
-				if (success) return;
+				if (success)
+				{
+					await StoreSnapshotDataInDatabase(manifest, modifiedTimes, chunkInfoMap);
+					return;
+				}
 
 				_logger.LogError("Failed to transmit snapshot manifest: {Error}", error);
 			}
@@ -98,10 +115,29 @@ public class Job
 				await Task.Delay(1000 * attempt); // backoff
 			}
 		}
-
 	}
 
-	async Task<uint> HashAndTransmitChunk(byte[] buffer, int chunkLength)
+	async Task StoreSnapshotDataInDatabase(SnapshotManifest manifest, Dictionary<ManifestFileEntry, DateTime> modifiedTimes, Dictionary<ManifestFileEntry, List<(int Size, uint IdentityHash)>> chunkInfoMap)
+	{
+		var db = await ClientDatabase.GetContext();
+
+		var snapshot = new SnapshotRecord
+		{
+			SnapshotId = manifest.GetSnapshotId(_clientId),
+			Files = [..manifest.Files.Select(f => new FileInfoAtSnapshotTime
+			{
+				FullPath = Path.Combine(manifest.BasePath, f.RelativePath),
+				LastModified = modifiedTimes[f],
+				Chunks = chunkInfoMap[f]
+			})],
+		};
+
+		db.Snapshots.Add(snapshot);
+
+		await db.SaveChangesAsync();
+	}
+
+	async Task<(int Size, uint IdentityHash)> HashAndTransmitChunk(byte[] buffer, int chunkLength)
 	{
 		byte[] compressedBytes = [.._compressor.Wrap(buffer.AsSpan(0, chunkLength))];
 
@@ -109,7 +145,7 @@ public class Job
 
 		if (await _client.ServerAlreadyHasChunk(identityHash))
 		{
-			return identityHash;
+			return (chunkLength, identityHash);
 		}
 
 		for (int attempt = 0; attempt < MaxRetries; attempt++)
@@ -117,7 +153,7 @@ public class Job
 			try
 			{
 				await _client.EncryptAndTransmitChunk(compressedBytes, identityHash);
-				return identityHash;
+				return (chunkLength, identityHash);
 			}
 			catch (Exception ex)
 			{
@@ -132,16 +168,16 @@ public class Job
 			}
 		}
 
-		return identityHash;
+		return (chunkLength, identityHash);
 	}
 
-	async Task<List<uint>> TransmitFile(FileStream fileStream, string relativePath)
+	async Task<List<(int Size, uint IdentityHash)>> TransmitFile(FileStream fileStream, string relativePath)
 	{
 		var chunkSizes = CDCUtils.CalculateChunkSizes(fileStream, _chunkSize.MinKB*1024, _chunkSize.MaxKB*1024);
 
 		byte[] buffer = new byte[_chunkSize.MaxKB * 1024];
 
-		List<uint> chunkHashes = [];
+		List<(int Size, uint IdentityHash)> chunkInfo = [];
 
 		foreach (var chunkSize in chunkSizes)
 		{
@@ -152,9 +188,9 @@ public class Job
 				throw new EndOfStreamException($"Unexpected end of stream while reading file {relativePath}");
 			}
 
-			chunkHashes.Add(await HashAndTransmitChunk(buffer, bytesRead));
+			chunkInfo.Add(await HashAndTransmitChunk(buffer, bytesRead));
 		}
 
-		return chunkHashes;
+		return chunkInfo;
 	}
 }
