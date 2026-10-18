@@ -31,7 +31,7 @@ public class SnapshotCleanupWorker(ILogger<SnapshotCleanupWorker> logger, Server
 				if (timeUntilNextExpiry > TimeSpan.Zero)
 				{
 					logger.LogInformation($"Next snapshot expiry in {timeUntilNextExpiry}. Waiting...");
-					await Task.Delay(timeUntilNextExpiry, stoppingToken);
+					await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
 				}
 
 				using (var scope = serviceProvider.CreateScope())

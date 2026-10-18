@@ -27,7 +27,7 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, M
 
 	public async Task RestoreSnapshot(string snapshotId)
 	{
-		string stagingDirectory = Path.Combine(Path.GetTempPath(), "User0332.Backup.RestorationTool", snapshotId);
+		string stagingDirectory = Path.Combine(Path.GetTempPath(), "User0332.Backup.RestorationTool", Guid.NewGuid().ToString());
 		Directory.CreateDirectory(stagingDirectory);
 
 		SnapshotManifest manifest = null!;
@@ -39,15 +39,12 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, M
 				var req = new FetchManifestRequest { SnapshotId = snapshotId };
 				var resp = await _client.FetchManifestAsync(req);
 
-				if (!resp.Success)
-				{
-					Console.WriteLine($"Failed to fetch manifest for snapshot {snapshotId}.");
-					continue;
-				}
+				byte[] decrypted = EncryptionUtils.DecryptData(resp.Manifest.ToByteArray(), _aes);
 
-				byte[] decrypted = EncryptionUtils.DecryptChunk(resp.Manifest.ToByteArray(), _aes);
+				byte[] decompressed = CompressionUtils.DecompressData(decrypted);
 
-				string manifestJson = System.Text.Encoding.UTF8.GetString(decrypted);
+				string manifestJson = System.Text.Encoding.UTF8.GetString(decompressed);
+
 				manifest = SnapshotManifest.FromJson(manifestJson);
 			}
 			catch (Exception ex)
@@ -108,6 +105,7 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, M
 			}
 
 			string destPath = Path.Combine(stagingDirectory, file.RelativePath);
+			Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
 
 			using FileStream destStream = new(destPath, FileMode.Create, FileAccess.Write);
 
@@ -131,29 +129,48 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, M
 					Console.WriteLine($"Downloading chunk {chunkHash} for file {file.RelativePath}");
 
 					int chunkStartOffset = filePos;
+					bool downloaded = false;
 
 					for (int i = 0; i < MaxFetchRetries; i++)
 					{
 						try
 						{
+							destStream.SetLength(chunkStartOffset);
+							destStream.Position = chunkStartOffset;
+							filePos = chunkStartOffset;
+
 							var request = new DownloadChunkRequest { ChunkHash = chunkHash };
 							var response = _client.DownloadChunk(request);
 
 							while (await response.ResponseStream.MoveNext(CancellationToken.None))
 							{
 								var chunkData = response.ResponseStream.Current.ChunkOfChunk.ToByteArray();
-								byte[] decryptedChunk = EncryptionUtils.DecryptChunk(chunkData, _aes);
-								destStream.Write(decryptedChunk, 0, decryptedChunk.Length);
 
-								filePos += decryptedChunk.Length;
+								byte[] decryptedChunk = EncryptionUtils.DecryptData(chunkData, _aes);
+								byte[] decompressedChunk = CompressionUtils.DecompressData(decryptedChunk);
+
+								destStream.Write(decompressedChunk, 0, decompressedChunk.Length);
+
+								filePos += decompressedChunk.Length;
 							}
+
+							downloaded = true;
+							break;
 						}
 						catch (Exception ex)
 						{
 							Console.WriteLine($"Attempt {i + 1} to download chunk {chunkHash} failed: {ex.Message}");
-							await Task.Delay(1000 * i); // backoff
+							if (i < MaxFetchRetries - 1)
+							{
+								await Task.Delay(1000 * (i + 1)); // backoff
+							}
 							continue;
 						}
+					}
+
+					if (!downloaded)
+					{
+						throw new IOException($"Failed to download chunk {chunkHash} after {MaxFetchRetries} attempts.");
 					}
 
 					int chunkSize = filePos - chunkStartOffset;
@@ -169,15 +186,9 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, M
 
 		if (Directory.Exists(manifest.BasePath))
 		{
-			Console.WriteLine($"Copying existing directory {manifest.BasePath} to {manifest.BasePath}.old");
-
-			if (Directory.Exists(manifest.BasePath + ".old"))
-			{
-				Console.WriteLine($"Deleting existing backup directory {manifest.BasePath}.old");
-				Directory.Delete(manifest.BasePath + ".old", true);
-			}
-
-			Directory.Move(manifest.BasePath, manifest.BasePath + ".old");
+			string oldDirectory = $"{manifest.BasePath}.old-{DateTime.UtcNow:yyyyMMddHHmmssfff}";
+			Console.WriteLine($"Moving existing directory {manifest.BasePath} to {oldDirectory}");
+			Directory.Move(manifest.BasePath, oldDirectory);
 		}
 
 		Directory.Move(stagingDirectory, manifest.BasePath);

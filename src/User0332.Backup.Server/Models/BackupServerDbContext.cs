@@ -9,7 +9,11 @@ public class BackupServerDbContext(DbContextOptions<BackupServerDbContext> optio
 
 	protected override void OnModelCreating(ModelBuilder modelBuilder)
 	{
-		modelBuilder.Entity<ChunkRecord>().HasKey(c => c.IdentityHash);
+		modelBuilder.Entity<ChunkRecord>(entity =>
+		{
+			entity.HasKey(c => c.IdentityHash);
+			entity.Property(c => c.IdentityHash).ValueGeneratedNever();
+		});
 		modelBuilder.Entity<SnapshotRecord>().HasKey(s => s.SnapshotId);
 	}
 }

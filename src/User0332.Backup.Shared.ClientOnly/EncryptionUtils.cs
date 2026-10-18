@@ -4,7 +4,7 @@ namespace User0332.Backup.Shared.ClientOnly;
 
 public static class EncryptionUtils
 {
-	public static byte[] EncryptChunk(Span<byte> chunk, AesGcm aes)
+	public static byte[] EncryptData(Span<byte> chunk, AesGcm aes)
 	{
 		byte[] nonce = new byte[12];
 		RandomNumberGenerator.Fill(nonce);
@@ -14,23 +14,27 @@ public static class EncryptionUtils
 
 		aes.Encrypt(nonce, chunk, ciphertext, tag);
 
-		return [..ciphertext, ..tag];
+		return [..nonce, ..ciphertext, ..tag];
 	}
 
-	public static byte[] DecryptChunk(Span<byte> encryptedChunk, AesGcm aes)
+	public static byte[] DecryptData(Span<byte> encryptedChunk, AesGcm aes)
 	{
-		if (encryptedChunk.Length < 16)
+		const int nonceLength = 12;
+		const int tagLength = 16;
+
+		if (encryptedChunk.Length < nonceLength + tagLength)
 		{
-			throw new ArgumentException("Encrypted chunk is too short to contain a valid tag.");
+			throw new ArgumentException("Encrypted chunk is too short to contain a valid nonce and tag.");
 		}
 
-		int ciphertextLength = encryptedChunk.Length - 16;
-		byte[] ciphertext = encryptedChunk[..ciphertextLength].ToArray();
-		byte[] tag = encryptedChunk[ciphertextLength..].ToArray();
+		byte[] nonce = encryptedChunk[..nonceLength].ToArray();
+		int ciphertextLength = encryptedChunk.Length - nonceLength - tagLength;
+		byte[] ciphertext = encryptedChunk.Slice(nonceLength, ciphertextLength).ToArray();
+		byte[] tag = encryptedChunk[(nonceLength + ciphertextLength)..].ToArray();
 
 		byte[] plaintext = new byte[ciphertextLength];
 
-		aes.Decrypt(new byte[12], ciphertext, tag, plaintext);
+		aes.Decrypt(nonce, ciphertext, tag, plaintext);
 
 		return plaintext;
 	}

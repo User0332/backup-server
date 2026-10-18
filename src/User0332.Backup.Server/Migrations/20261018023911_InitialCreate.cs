@@ -15,8 +15,7 @@ namespace User0332.Backup.Server.Migrations
                 name: "Chunks",
                 columns: table => new
                 {
-                    IdentityHash = table.Column<uint>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
+                    IdentityHash = table.Column<uint>(type: "INTEGER", nullable: false),
                     FilePath = table.Column<string>(type: "TEXT", nullable: false),
                     RefCount = table.Column<int>(type: "INTEGER", nullable: false)
                 },

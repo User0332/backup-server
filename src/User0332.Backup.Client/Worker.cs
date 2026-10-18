@@ -1,6 +1,9 @@
 using System.Text;
+using Grpc.Net.Client;
 using Microsoft.Extensions.Options;
 using User0332.Backup.Client.Configuration;
+using User0332.Backup.Client.JobExecution;
+using User0332.Backup.Shared;
 
 namespace User0332.Backup.Client;
 
@@ -39,11 +42,14 @@ public class Worker(ILogger<Worker> logger, IOptions<BackupClientOptions> option
 	{
 		LogConfiguration(options.Value);
 
-		PriorityQueue<JobOptions, DateTime> jobQueue = new();
+		using var channel = GrpcChannel.ForAddress(options.Value.ServerAddress);
+		var client = new RequestHelper(options.Value, channel);
+
+		PriorityQueue<Job, DateTime> jobQueue = new();
 
 		string[] jobQueueFileLines;
 
-		if (File.Exists("jobqueue.txt") && (jobQueueFileLines = File.ReadAllLines("jobqueue.txt")).Length == options.Value.Jobs.Length)
+		if (File.Exists(Constants.JobQueueFilePath) && (jobQueueFileLines = File.ReadAllLines(Constants.JobQueueFilePath)).Length == options.Value.Jobs.Length)
 		{
 			foreach (var line in jobQueueFileLines)
 			{
@@ -72,7 +78,7 @@ public class Worker(ILogger<Worker> logger, IOptions<BackupClientOptions> option
 					continue;
 				}
 
-				jobQueue.Enqueue(job, executionTime);
+				jobQueue.Enqueue(new Job(options.Value.ClientId, job, client, logger), executionTime);
 			}
 		}
 		else
@@ -84,7 +90,7 @@ public class Worker(ILogger<Worker> logger, IOptions<BackupClientOptions> option
 				var job = options.Value.Jobs[i];
 				var nextExecutionTime = DateTime.UtcNow + job.Interval.ToTimeSpan();
 
-				jobQueue.Enqueue(job, nextExecutionTime);
+				jobQueue.Enqueue(new Job(options.Value.ClientId, job, client, logger), nextExecutionTime);
 				lines[i] = $"{job.JobId}${nextExecutionTime}";
 			}
 
@@ -107,9 +113,10 @@ public class Worker(ILogger<Worker> logger, IOptions<BackupClientOptions> option
 
 					// execute job
 
+					await pendingJob.Execute();
 
 					// reschedule job
-					var newExecutionTime = now + pendingJob.Interval.ToTimeSpan();
+					var newExecutionTime = now + pendingJob.Interval;
 
 					jobQueue.Enqueue(pendingJob, newExecutionTime);
 

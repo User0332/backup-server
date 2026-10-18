@@ -9,6 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddGrpc();
 
+var backupStoragePath = builder.Configuration["BackupStoragePath"]
+	?? throw new InvalidOperationException("BackupStoragePath is not configured.");
+Directory.CreateDirectory(backupStoragePath);
+
 var connectionString = builder.Configuration.GetConnectionString("BackupServerDb");
 var connection = new SqliteConnection(connectionString);
 connection.Open();

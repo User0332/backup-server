@@ -10,4 +10,7 @@ public static class Constants
 
 	public const string DatabaseFileName = "backup_client.db";
 	public static readonly string DatabaseFilePath = Path.Combine(DataDirectory, DatabaseFileName);
+
+	public const string JobQueueFileName = "jobqueue.txt";
+	public static readonly string JobQueueFilePath = Path.Combine(DataDirectory, JobQueueFileName);
 }

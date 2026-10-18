@@ -21,6 +21,7 @@ public class BackupService(ILogger<BackupService> logger, ServerLockManager lock
 	{
 		FileStream? fileStream = null;
 		uint chunkHash = 0;
+		string? temporaryFilePath = null;
 
 		try
 		{
@@ -33,9 +34,9 @@ public class BackupService(ILogger<BackupService> logger, ServerLockManager lock
 					case StoreChunkRequest.PayloadOneofCase.ChunkHash:
 						logger.LogInformation("Storing chunk {hash}.", request.ChunkHash);
 
-						string fileName = $"{chunkHash}.chunk";
-
-						fileStream = new FileStream(Path.Combine(TargetDirectory, fileName), FileMode.Create, FileAccess.Write);
+						chunkHash = request.ChunkHash;
+						temporaryFilePath = Path.Combine(TargetDirectory, $"{Guid.NewGuid():N}.tmp");
+						fileStream = new FileStream(temporaryFilePath, FileMode.CreateNew, FileAccess.Write);
 
 						break;
 					case StoreChunkRequest.PayloadOneofCase.ChunkOfChunk:
@@ -65,14 +66,27 @@ public class BackupService(ILogger<BackupService> logger, ServerLockManager lock
 				}
 			}
 
+			await fileStream!.DisposeAsync();
+			fileStream = null;
+
 			using (await lockManager.AcquireDatabaseLockAsync(context.CancellationToken))
 			{
-				await Repository.AddChunkAsync(new Models.ChunkRecord
+				if (await Repository.ChunkExistsAsync(chunkHash, context.CancellationToken))
 				{
-					IdentityHash = chunkHash,
-					FilePath = fileStream!.Name,
-					RefCount = -1 // placeholder, when a snapshot is stored, the refcount will be updated to the correct value
-				}, context.CancellationToken);
+					logger.LogInformation("Chunk {hash} was already stored; discarding duplicate upload.", chunkHash);
+				}
+				else
+				{
+					string filePath = Path.Combine(TargetDirectory, $"{chunkHash}.chunk");
+					File.Move(temporaryFilePath!, filePath);
+
+					await Repository.AddChunkAsync(new Models.ChunkRecord
+					{
+						IdentityHash = chunkHash,
+						FilePath = filePath,
+						RefCount = -1 // placeholder, when a snapshot is stored, the refcount will be updated to the correct value
+					}, context.CancellationToken);
+				}
 			}
 
 			return new StoreChunkReply
@@ -95,6 +109,11 @@ public class BackupService(ILogger<BackupService> logger, ServerLockManager lock
 			{
 				await fileStream.DisposeAsync();
 			}
+
+			if (temporaryFilePath != null && File.Exists(temporaryFilePath))
+			{
+				File.Delete(temporaryFilePath);
+			}
 		}
 	}
 
@@ -115,6 +134,21 @@ public class BackupService(ILogger<BackupService> logger, ServerLockManager lock
 
 		using (await lockManager.AcquireDatabaseLockAsync(context.CancellationToken))
 		{
+			var existingSnapshot = await Repository.GetSnapshotAsync(request.SnapshotId, context.CancellationToken);
+			if (existingSnapshot != null)
+			{
+				if (existingSnapshot.EncryptedManifest.AsSpan().SequenceEqual(request.EncryptedManifest.Span))
+				{
+					logger.LogInformation("Snapshot {snapshotId} was already stored; treating duplicate upload as successful.", request.SnapshotId);
+					return new StoreSnapshotReply
+					{
+						Success = true
+					};
+				}
+
+				throw new RpcException(new Status(StatusCode.AlreadyExists, $"Snapshot {request.SnapshotId} already exists with different content."));
+			}
+
 			var snapshotRecord = new Models.SnapshotRecord
 			{
 				SnapshotId = request.SnapshotId,

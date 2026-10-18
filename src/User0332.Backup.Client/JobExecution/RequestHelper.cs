@@ -19,7 +19,9 @@ public class RequestHelper(BackupClientOptions options, GrpcChannel channel)
 	{
 		byte[] manifestSerialized = Encoding.UTF8.GetBytes(manifest.ToJson());
 
-		var encryptedManifest = EncryptionUtils.EncryptChunk(manifestSerialized, _aes);
+		byte[] manifestCompressed = CompressionUtils.CompressData(manifestSerialized);
+
+		var encryptedManifest = EncryptionUtils.EncryptData(manifestCompressed, _aes);
 		var manifestTransitHash = TransitIntegrityUtils.CalculateTransitHash(encryptedManifest);
 
 		// send to server...
@@ -55,7 +57,7 @@ public class RequestHelper(BackupClientOptions options, GrpcChannel channel)
 
 	public async Task<(bool Success, string Error)> EncryptAndTransmitChunk(byte[] compressedChunk, uint identityHash)
 	{
-		byte[] encryptedChunk = EncryptionUtils.EncryptChunk(compressedChunk, _aes);
+		byte[] encryptedChunk = EncryptionUtils.EncryptData(compressedChunk, _aes);
 
 		using var req = _client.StoreChunk();
 

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace User0332.Backup.Shared;
 
@@ -21,7 +23,8 @@ public class SnapshotManifest
 
 	public string GetSnapshotId(string clientId)
 	{
-		return $"{clientId}-{JobId}-{DateTime.FromFileTimeUtc(SnapshotTimestamp)}";
+		var manifestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ToJson())));
+		return $"{clientId}-{JobId}-{DateTime.UnixEpoch.AddSeconds(SnapshotTimestamp):O}-{manifestHash}";
 	}
 }
 

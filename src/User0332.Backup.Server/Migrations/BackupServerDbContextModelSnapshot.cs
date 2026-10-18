@@ -35,7 +35,7 @@ namespace User0332.Backup.Server.Migrations
             modelBuilder.Entity("User0332.Backup.Server.Models.ChunkRecord", b =>
                 {
                     b.Property<uint>("IdentityHash")
-                        .ValueGeneratedOnAdd()
+                        .ValueGeneratedNever()
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("FilePath")

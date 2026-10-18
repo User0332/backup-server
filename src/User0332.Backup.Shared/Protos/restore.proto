@@ -24,8 +24,7 @@ message FetchManifestRequest {
 }
 
 message FetchManifestReply {
-	bool success = 1;
-	bytes manifest = 2;
+	bytes manifest = 1;
 }
 
 message DownloadChunkRequest {

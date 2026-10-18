@@ -13,20 +13,21 @@ public class Job
 	const int MaxRetries = 4;
 
 	readonly string _clientId;
-	readonly string _jobId;
+	public readonly string JobId;
+	public readonly TimeSpan Interval;
 	readonly string _basePath;
 	readonly string[] _filePatterns;
 	readonly ExpiryPolicy _expiryPolicy;
 	readonly ChunkSizeConstraint _chunkSize;
 	readonly RequestHelper _client;
-	readonly Compressor _compressor = new();
 	readonly Matcher _matcher = new();
 	readonly ILogger<Worker> _logger;
 
 	public Job(string clientId, JobOptions options, RequestHelper client, ILogger<Worker> logger)
 	{
 		_clientId = clientId;
-		_jobId = options.JobId;
+		JobId = options.JobId;
+		Interval = options.Interval.ToTimeSpan();
 		_basePath = options.BasePath;
 		_filePatterns = [..options.FilePatterns];
 		_expiryPolicy = options.ExpiryPolicy;
@@ -82,7 +83,7 @@ public class Job
 		var manifest = new SnapshotManifest
 		{
 			SnapshotTimestamp = (snapshotCreationTime - DateTime.UnixEpoch).Ticks / TimeSpan.TicksPerSecond,
-			JobId = _jobId,
+			JobId = JobId,
 			BasePath = _basePath,
 			Files = [..manifestFiles],
 		};
@@ -139,7 +140,7 @@ public class Job
 
 	async Task<ChunkInfo> HashAndTransmitChunk(byte[] buffer, int chunkLength)
 	{
-		byte[] compressedBytes = [.._compressor.Wrap(buffer.AsSpan(0, chunkLength))];
+		byte[] compressedBytes = CompressionUtils.CompressData(buffer.AsSpan()[..chunkLength]);
 
 		uint identityHash = CDCUtils.CalculateIdentityHash(buffer);
 
@@ -174,6 +175,8 @@ public class Job
 	async Task<List<ChunkInfo>> TransmitFile(FileStream fileStream, string relativePath)
 	{
 		var chunkSizes = CDCUtils.CalculateChunkSizes(fileStream, _chunkSize.MinKB*1024, _chunkSize.MaxKB*1024);
+
+		fileStream.Seek(0, SeekOrigin.Begin);
 
 		byte[] buffer = new byte[_chunkSize.MaxKB * 1024];
 
