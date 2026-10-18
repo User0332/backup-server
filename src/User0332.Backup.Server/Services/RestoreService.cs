@@ -5,13 +5,14 @@ using User0332.Backup.Shared;
 
 namespace User0332.Backup.Server.Services;
 
-public class RestoreService(ILogger<RestoreService> logger, IBackupRepository repository) : Restore.RestoreBase
+public class RestoreService(ILogger<RestoreService> logger, IServiceProvider serviceProvider) : Restore.RestoreBase
 {
 	const int StreamingBufferSize = 64*1024; // 64 KB
+	IBackupRepository Repository => serviceProvider.GetRequiredService<IBackupRepository>();
 
 	public override async Task<ListSnapshotsReply> ListSnapshots(ListSnapshotsRequest request, ServerCallContext context)
 	{
-		var snapshots = await repository.ListSnapshotsAsync(request.ClientId, request.JobId, context.CancellationToken);
+		var snapshots = await Repository.ListSnapshotsAsync(request.ClientId, request.JobId, context.CancellationToken);
 
 		return new ListSnapshotsReply
 		{
@@ -21,7 +22,7 @@ public class RestoreService(ILogger<RestoreService> logger, IBackupRepository re
 
 	public override async Task<FetchManifestReply> FetchManifest(FetchManifestRequest request, ServerCallContext context)
 	{
-		var snapshot = await repository.GetSnapshotAsync(request.SnapshotId, context.CancellationToken) ?? throw new RpcException(new Status(StatusCode.NotFound, $"Snapshot {request.SnapshotId} not found."));
+		var snapshot = await Repository.GetSnapshotAsync(request.SnapshotId, context.CancellationToken) ?? throw new RpcException(new Status(StatusCode.NotFound, $"Snapshot {request.SnapshotId} not found."));
 
 		return new FetchManifestReply
 		{
@@ -31,7 +32,7 @@ public class RestoreService(ILogger<RestoreService> logger, IBackupRepository re
 
 	public override async Task DownloadChunk(DownloadChunkRequest request, IServerStreamWriter<DownloadChunkReply> responseStream, ServerCallContext context)
 	{
-		var chunk = await repository.GetChunkAsync(request.ChunkHash, context.CancellationToken) ?? throw new RpcException(new Status(StatusCode.NotFound, $"Chunk {request.ChunkHash} not found."));
+		var chunk = await Repository.GetChunkAsync(request.ChunkHash, context.CancellationToken) ?? throw new RpcException(new Status(StatusCode.NotFound, $"Chunk {request.ChunkHash} not found."));
 
 		FileStream chunkStream = new(chunk.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
 

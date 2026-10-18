@@ -3,6 +3,7 @@ using Grpc.Net.Client;
 using User0332.Backup.RestorationTool;
 using User0332.Backup.Shared;
 using User0332.Backup.Shared.ClientOnly;
+using User0332.Backup.Shared.ClientOnly.Models;
 
 var config = JsonSerializer.Deserialize<MinimalConfig>(File.ReadAllText(Constants.BackupClientConfigFilePath))!;
 
@@ -23,7 +24,7 @@ var jobIdInput = Console.ReadLine();
 Console.WriteLine("Fetching snapshots...");
 
 using var channel = GrpcChannel.ForAddress(config.ServerAddress);
-using var db =  await ClientDatabase.GetContext();
+using var db = new BackupClientDbContextFactory().CreateDbContext([]);
 
 var restorer = new RestorationActions(db, channel, config);
 

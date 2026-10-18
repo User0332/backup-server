@@ -2,7 +2,7 @@ using User0332.Backup.Server.Repositories;
 
 namespace User0332.Backup.Server;
 
-public class SnapshotCleanupWorker(ILogger<SnapshotCleanupWorker> logger, ServerLockManager lockManager, IBackupRepository db) : BackgroundService
+public class SnapshotCleanupWorker(ILogger<SnapshotCleanupWorker> logger, ServerLockManager lockManager, IServiceProvider serviceProvider) : BackgroundService
 {
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
@@ -12,7 +12,12 @@ public class SnapshotCleanupWorker(ILogger<SnapshotCleanupWorker> logger, Server
 		{
 			try
 			{
-				var nextExpiryTime = await db.GetNextSnapshotExpiryTime(stoppingToken);
+				DateTimeOffset? nextExpiryTime;
+				using (var scope = serviceProvider.CreateScope())
+				{
+					var repository = scope.ServiceProvider.GetRequiredService<IBackupRepository>();
+					nextExpiryTime = await repository.GetNextSnapshotExpiryTime(stoppingToken);
+				}
 
 				if (nextExpiryTime is null)
 				{
@@ -29,9 +34,13 @@ public class SnapshotCleanupWorker(ILogger<SnapshotCleanupWorker> logger, Server
 					await Task.Delay(timeUntilNextExpiry, stoppingToken);
 				}
 
-				using (await lockManager.AcquireDatabaseLockAsync(stoppingToken))
+				using (var scope = serviceProvider.CreateScope())
 				{
-					await CleanupSnapshotsAsync(stoppingToken);
+					var repository = scope.ServiceProvider.GetRequiredService<IBackupRepository>();
+					using (await lockManager.AcquireDatabaseLockAsync(stoppingToken))
+					{
+						await CleanupSnapshotsAsync(repository, stoppingToken);
+					}
 				}
 			}
 			catch (Exception ex)
@@ -41,9 +50,9 @@ public class SnapshotCleanupWorker(ILogger<SnapshotCleanupWorker> logger, Server
 		}
 	}
 
-	private async Task CleanupSnapshotsAsync(CancellationToken cancellationToken)
+	private async Task CleanupSnapshotsAsync(IBackupRepository repository, CancellationToken cancellationToken)
 	{
-		var snapshots = await db.ListSnapshotsAsync(null, null, cancellationToken);
+		var snapshots = await repository.ListSnapshotsAsync(null, null, cancellationToken);
 
 		foreach (var snapshot in snapshots)
 		{
@@ -51,7 +60,7 @@ public class SnapshotCleanupWorker(ILogger<SnapshotCleanupWorker> logger, Server
 			{
 				logger.LogInformation("Deleting expired snapshot: {SnapshotId}", snapshot.SnapshotId);
 
-				var filesToCleanup = await db.DeleteSnapshotAsync(snapshot, cancellationToken);
+				var filesToCleanup = await repository.DeleteSnapshotAsync(snapshot, cancellationToken);
 
 				foreach (var file in filesToCleanup)
 				{

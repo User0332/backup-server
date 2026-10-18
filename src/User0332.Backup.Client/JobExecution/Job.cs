@@ -41,7 +41,7 @@ public class Job
 	{
 		List<ManifestFileEntry> manifestFiles = [];
 		Dictionary<ManifestFileEntry, DateTime> modifiedTimes = [];
-		Dictionary<ManifestFileEntry, List<(int Size, uint IdentityHash)>> chunkInfoMap = [];
+		Dictionary<ManifestFileEntry, List<ChunkInfo>> chunkInfoMap = [];
 		HashSet<uint> aggregatedChunkHashes = [];
 
 		foreach (var pattern in _filePatterns)
@@ -117,9 +117,9 @@ public class Job
 		}
 	}
 
-	async Task StoreSnapshotDataInDatabase(SnapshotManifest manifest, Dictionary<ManifestFileEntry, DateTime> modifiedTimes, Dictionary<ManifestFileEntry, List<(int Size, uint IdentityHash)>> chunkInfoMap)
+	async Task StoreSnapshotDataInDatabase(SnapshotManifest manifest, Dictionary<ManifestFileEntry, DateTime> modifiedTimes, Dictionary<ManifestFileEntry, List<ChunkInfo>> chunkInfoMap)
 	{
-		var db = await ClientDatabase.GetContext();
+		var db = new BackupClientDbContextFactory().CreateDbContext([]);
 
 		var snapshot = new SnapshotRecord
 		{
@@ -137,7 +137,7 @@ public class Job
 		await db.SaveChangesAsync();
 	}
 
-	async Task<(int Size, uint IdentityHash)> HashAndTransmitChunk(byte[] buffer, int chunkLength)
+	async Task<ChunkInfo> HashAndTransmitChunk(byte[] buffer, int chunkLength)
 	{
 		byte[] compressedBytes = [.._compressor.Wrap(buffer.AsSpan(0, chunkLength))];
 
@@ -145,7 +145,7 @@ public class Job
 
 		if (await _client.ServerAlreadyHasChunk(identityHash))
 		{
-			return (chunkLength, identityHash);
+			return new ChunkInfo { Size = chunkLength, IdentityHash = identityHash };
 		}
 
 		for (int attempt = 0; attempt < MaxRetries; attempt++)
@@ -153,7 +153,7 @@ public class Job
 			try
 			{
 				await _client.EncryptAndTransmitChunk(compressedBytes, identityHash);
-				return (chunkLength, identityHash);
+				return new ChunkInfo { Size = chunkLength, IdentityHash = identityHash };
 			}
 			catch (Exception ex)
 			{
@@ -168,16 +168,16 @@ public class Job
 			}
 		}
 
-		return (chunkLength, identityHash);
+		return new ChunkInfo { Size = chunkLength, IdentityHash = identityHash };
 	}
 
-	async Task<List<(int Size, uint IdentityHash)>> TransmitFile(FileStream fileStream, string relativePath)
+	async Task<List<ChunkInfo>> TransmitFile(FileStream fileStream, string relativePath)
 	{
 		var chunkSizes = CDCUtils.CalculateChunkSizes(fileStream, _chunkSize.MinKB*1024, _chunkSize.MaxKB*1024);
 
 		byte[] buffer = new byte[_chunkSize.MaxKB * 1024];
 
-		List<(int Size, uint IdentityHash)> chunkInfo = [];
+		List<ChunkInfo> chunkInfo = [];
 
 		foreach (var chunkSize in chunkSizes)
 		{

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using User0332.Backup.Server;
 using User0332.Backup.Server.Models;
+using User0332.Backup.Server.Repositories;
 using User0332.Backup.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,7 +12,9 @@ builder.Services.AddDbContext<BackupServerDbContext>(options =>
 {
 	options.UseSqlite(builder.Configuration.GetConnectionString("BackupServerDb"));
 });
+builder.Services.AddScoped<IBackupRepository, BackupRepository>();
 
+builder.Services.AddSingleton<ServerLockManager>();
 builder.Services.AddHostedService<SnapshotCleanupWorker>();
 
 var app = builder.Build();

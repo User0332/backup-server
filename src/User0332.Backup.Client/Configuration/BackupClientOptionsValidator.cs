@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Json.Schema;
 using Microsoft.Extensions.Options;
+using User0332.Backup.Shared;
 
 namespace User0332.Backup.Client.Configuration;
 
@@ -21,7 +22,9 @@ public class BackupClientOptionsValidator : IValidateOptions<BackupClientOptions
 			return ValidateOptionsResult.Fail($"Configuration validation failed: {errors}");
 		}
 
-		if (!File.Exists(options.EncryptionKey)) return ValidateOptionsResult.Fail($"Encryption key file '{options.EncryptionKey}' does not exist.");
+		var keyPath = Path.Combine(Constants.DataDirectory, options.EncryptionKey);
+
+		if (!File.Exists(keyPath)) return ValidateOptionsResult.Fail($"Encryption key file '{keyPath}' does not exist.");
 
 		HashSet<string> jobNames = [];
 

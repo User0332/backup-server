@@ -10,7 +10,7 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, M
 {
 	const int MaxFetchRetries = 4;
 	readonly Restore.RestoreClient _client = new(channel);
-	readonly AesGcm	_aes = new(File.ReadAllBytes(config.EncryptionKey), 16);
+	readonly AesGcm	_aes = new(File.ReadAllBytes(Path.Combine(Constants.DataDirectory, config.EncryptionKey)), 16);
 
 	public async Task<List<string>> ListSnapshots(string? clientIdFilter, string? jobIdFilter)
 	{
@@ -82,8 +82,11 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, M
 
 					int offset = 0;
 
-					foreach (var (size, identityHash) in file.Chunks)
+					foreach (var chunkInfo in file.Chunks)
 					{
+						var size = chunkInfo.Size;
+						var identityHash = chunkInfo.IdentityHash;
+
 						if (!chunkFileMap.ContainsKey(identityHash))
 						{
 							chunkFileMap[identityHash] = (file.FullPath, offset, size);

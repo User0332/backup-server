@@ -3,3 +3,5 @@ bin/
 obj/
 secret.key
 jobqueue.txt
+*.tar
+*.key

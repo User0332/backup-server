@@ -10,7 +10,7 @@ namespace User0332.Backup.Client.JobExecution;
 public class RequestHelper(BackupClientOptions options, GrpcChannel channel)
 {
 	readonly string _clientId = options.ClientId;
-	readonly AesGcm _aes = new(File.ReadAllBytes(options.EncryptionKey), 16);
+	readonly AesGcm _aes = new(File.ReadAllBytes(Path.Combine(Constants.DataDirectory, options.EncryptionKey)), 16);
 	readonly Shared.Backup.BackupClient _client = new(channel);
 
 	const int MaxTransmitChunkSize = 64 * 1024; // 64 KB

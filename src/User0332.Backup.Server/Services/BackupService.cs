@@ -4,15 +4,16 @@ using User0332.Backup.Shared;
 
 namespace User0332.Backup.Server.Services;
 
-public class BackupService(ILogger<BackupService> logger, ServerLockManager lockManager, IConfiguration config, IBackupRepository repository) : Shared.Backup.BackupBase
+public class BackupService(ILogger<BackupService> logger, ServerLockManager lockManager, IConfiguration config, IServiceProvider serviceProvider) : Shared.Backup.BackupBase
 {
 	readonly string TargetDirectory = config["BackupStoragePath"] ?? throw new InvalidOperationException("BackupStoragePath is not configured.");
+	IBackupRepository Repository => serviceProvider.GetRequiredService<IBackupRepository>();
 
 	public override async Task<ChunkExistsReply> ChunkExists(ChunkExistsRequest request, ServerCallContext context)
 	{
 		return new ChunkExistsReply
 		{
-			Exists = await repository.ChunkExistsAsync(request.Hash, context.CancellationToken)
+			Exists = await Repository.ChunkExistsAsync(request.Hash, context.CancellationToken)
 		};
 	}
 
@@ -66,7 +67,7 @@ public class BackupService(ILogger<BackupService> logger, ServerLockManager lock
 
 			using (await lockManager.AcquireDatabaseLockAsync(context.CancellationToken))
 			{
-				await repository.AddChunkAsync(new Models.ChunkRecord
+				await Repository.AddChunkAsync(new Models.ChunkRecord
 				{
 					IdentityHash = chunkHash,
 					FilePath = fileStream!.Name,
@@ -122,7 +123,7 @@ public class BackupService(ILogger<BackupService> logger, ServerLockManager lock
 				Chunks = await Task.WhenAll(
 					request.Chunks.Select(
 						async (hash) => {
-							var res = await repository.GetChunkAsync(hash, context.CancellationToken) ?? throw new RpcException(new Status(StatusCode.NotFound, $"Chunk {hash} not found."));
+							var res = await Repository.GetChunkAsync(hash, context.CancellationToken) ?? throw new RpcException(new Status(StatusCode.NotFound, $"Chunk {hash} not found."));
 							return res;
 						}
 					)
@@ -132,7 +133,7 @@ public class BackupService(ILogger<BackupService> logger, ServerLockManager lock
 				ExpiresAt = request.ExpiresAt.ToDateTimeOffset(),
 			};
 
-			await repository.StoreSnapshotAsync(snapshotRecord, context.CancellationToken);
+			await Repository.StoreSnapshotAsync(snapshotRecord, context.CancellationToken);
 		}
 
 		return new StoreSnapshotReply
