@@ -1,0 +1,16 @@
+services:
+  backup-server:
+    image: user0332-backup-server:latest
+    container_name: backup-server
+    restart: unless-stopped
+    ports:
+      - "5131:5131"
+
+    environment:
+      - ASPNETCORE_URLS=http://+:5131
+      - ASPNETCORE_ENVIRONMENT=Production
+      - BackupStoragePath=/app/data/chunks
+      - ConnectionStrings__BackupServerDb=Data Source=/app/data/backup.db;Journal Mode=WAL;Busy Timeout=5000;
+
+    volumes:
+      - /DATA/user0332-backup-server/appdata:/app/data
