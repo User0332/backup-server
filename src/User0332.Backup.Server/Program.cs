@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using User0332.Backup.Server;
 using User0332.Backup.Server.Models;
@@ -6,12 +7,23 @@ using User0332.Backup.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddGrpc();
+
+var connectionString = builder.Configuration.GetConnectionString("BackupServerDb");
+var connection = new SqliteConnection(connectionString);
+connection.Open();
+
+using (var command = connection.CreateCommand())
+{
+	command.CommandText = "PRAGMA journal_mode=WAL;Busy Timeout=5000;";
+	command.ExecuteNonQuery();
+}
+
 builder.Services.AddDbContext<BackupServerDbContext>(options =>
 {
-	options.UseSqlite(builder.Configuration.GetConnectionString("BackupServerDb"));
+	options.UseSqlite(connection);
 });
+
 builder.Services.AddScoped<IBackupRepository, BackupRepository>();
 
 builder.Services.AddSingleton<ServerLockManager>();
@@ -26,9 +38,7 @@ using (var scope = app.Services.CreateScope())
 	dbContext.Database.Migrate();
 }
 
-// Configure the HTTP request pipeline.
 app.MapGrpcService<BackupService>();
 app.MapGrpcService<RestoreService>();
-app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909");
 
 app.Run();

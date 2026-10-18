@@ -15,7 +15,7 @@ public class RequestHelper(BackupClientOptions options, GrpcChannel channel)
 
 	const int MaxTransmitChunkSize = 64 * 1024; // 64 KB
 
-	public async Task<(bool Success, string Error)> EncryptAndTransmitSnapshotManifest(SnapshotManifest manifest, DateTimeOffset expiresAt, HashSet<uint> aggregatedChunkList)
+	public async Task<(bool Success, string Error)> EncryptAndTransmitSnapshotManifest(SnapshotManifest manifest, DateTime expiresAt, HashSet<uint> aggregatedChunkList)
 	{
 		byte[] manifestSerialized = Encoding.UTF8.GetBytes(manifest.ToJson());
 
@@ -30,8 +30,8 @@ public class RequestHelper(BackupClientOptions options, GrpcChannel channel)
 			JobId = manifest.JobId,
 			ManifestTransitHash = manifestTransitHash,
 			EncryptedManifest = Google.Protobuf.ByteString.CopyFrom(encryptedManifest),
-			ExpiresAt = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(expiresAt),
-			CreatedAt = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(DateTimeOffset.FromUnixTimeSeconds(manifest.SnapshotTimestamp)),
+			ExpiresAt = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTime(DateTime.SpecifyKind(expiresAt, DateTimeKind.Utc)),
+			CreatedAt = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTime(DateTime.UnixEpoch.AddSeconds(manifest.SnapshotTimestamp)),
 		};
 
 		req.Chunks.AddRange(aggregatedChunkList);

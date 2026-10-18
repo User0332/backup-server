@@ -129,8 +129,8 @@ public class BackupService(ILogger<BackupService> logger, ServerLockManager lock
 					)
 				),
 				EncryptedManifest = request.EncryptedManifest.ToByteArray(),
-				CreatedAt = request.CreatedAt.ToDateTimeOffset(),
-				ExpiresAt = request.ExpiresAt.ToDateTimeOffset(),
+				CreatedAt = DateTime.SpecifyKind(request.CreatedAt.ToDateTime(), DateTimeKind.Utc),
+				ExpiresAt = DateTime.SpecifyKind(request.ExpiresAt.ToDateTime(), DateTimeKind.Utc),
 			};
 
 			await Repository.StoreSnapshotAsync(snapshotRecord, context.CancellationToken);

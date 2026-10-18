@@ -12,7 +12,7 @@ public class SnapshotCleanupWorker(ILogger<SnapshotCleanupWorker> logger, Server
 		{
 			try
 			{
-				DateTimeOffset? nextExpiryTime;
+				DateTime? nextExpiryTime;
 				using (var scope = serviceProvider.CreateScope())
 				{
 					var repository = scope.ServiceProvider.GetRequiredService<IBackupRepository>();
@@ -27,7 +27,7 @@ public class SnapshotCleanupWorker(ILogger<SnapshotCleanupWorker> logger, Server
 					continue;
 				}
 
-				var timeUntilNextExpiry = nextExpiryTime.Value - DateTimeOffset.UtcNow;
+				var timeUntilNextExpiry = nextExpiryTime.Value - DateTime.UtcNow;
 				if (timeUntilNextExpiry > TimeSpan.Zero)
 				{
 					logger.LogInformation($"Next snapshot expiry in {timeUntilNextExpiry}. Waiting...");
@@ -43,6 +43,10 @@ public class SnapshotCleanupWorker(ILogger<SnapshotCleanupWorker> logger, Server
 					}
 				}
 			}
+			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+			{
+				break;
+			}
 			catch (Exception ex)
 			{
 				logger.LogError(ex, "Error during snapshot cleanup.");
@@ -56,7 +60,7 @@ public class SnapshotCleanupWorker(ILogger<SnapshotCleanupWorker> logger, Server
 
 		foreach (var snapshot in snapshots)
 		{
-			if (snapshot.ExpiresAt < DateTime.UtcNow)
+			if (snapshot.ExpiresAt <= DateTime.UtcNow)
 			{
 				logger.LogInformation("Deleting expired snapshot: {SnapshotId}", snapshot.SnapshotId);
 

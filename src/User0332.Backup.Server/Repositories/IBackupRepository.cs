@@ -10,6 +10,6 @@ public interface IBackupRepository
 	public Task StoreSnapshotAsync(SnapshotRecord snapshot, CancellationToken cancellationToken = default);
 	public Task<SnapshotRecord?> GetSnapshotAsync(string snapshotId, CancellationToken cancellationToken = default);
 	public Task<List<SnapshotRecord>> ListSnapshotsAsync(string? clientIdFilter, string? jobIdFilter, CancellationToken cancellationToken = default);
-	public Task<DateTimeOffset?> GetNextSnapshotExpiryTime(CancellationToken cancellationToken = default);
+	public Task<DateTime?> GetNextSnapshotExpiryTime(CancellationToken cancellationToken = default);
 	public Task<List<string>> DeleteSnapshotAsync(SnapshotRecord snapshotId, CancellationToken cancellationToken = default);
 }

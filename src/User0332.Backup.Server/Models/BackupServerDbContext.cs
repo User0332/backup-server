@@ -29,6 +29,6 @@ public class SnapshotRecord
 	public required string JobId { get; set; }
 	public ICollection<ChunkRecord> Chunks { get; set; } = [];
 	public required byte[] EncryptedManifest { get; set; }
-	public required DateTimeOffset CreatedAt { get; set; }
-	public required DateTimeOffset ExpiresAt { get; set; }
+	public required DateTime CreatedAt { get; set; }
+	public required DateTime ExpiresAt { get; set; }
 }

@@ -27,23 +27,7 @@ public class Worker(ILogger<Worker> logger, IOptions<BackupClientOptions> option
 
 			sb.AppendFormat("  Interval: {0} {1}\n", interval.Value, interval.Unit);
 
-			if (job.ExpiryPolicy is not null)
-			{
-				if (job.ExpiryPolicy.MaxAge is not null)
-				{
-					var maxAge = job.ExpiryPolicy.MaxAge;
-
-					sb.AppendFormat("  Expiry Policy: Max Age: {0} {1}\n", maxAge.Value, maxAge.Unit);
-				}
-				else
-				{
-					sb.AppendFormat("  Expiry Policy: Max Count: {0}\n", job.ExpiryPolicy.MaxCount);
-				}
-			}
-			else
-			{
-				sb.Append("  Expiry Policy: None\n");
-			}
+			sb.AppendFormat("  Expiry Policy: Max Age: {0} {1}\n", job.ExpiryPolicy.MaxAge.Value, job.ExpiryPolicy.MaxAge.Unit);
 
 			sb.AppendFormat("  Chunk Size Range: {0} KB - {1} KB\n", job.ChunkSize.MinKB, job.ChunkSize.MaxKB);
 		}
@@ -80,7 +64,7 @@ public class Worker(ILogger<Worker> logger, IOptions<BackupClientOptions> option
 					continue;
 				}
 
-				var job = options.Value.Jobs.First(j => j.JobId == jobId);
+				var job = options.Value.Jobs.FirstOrDefault(j => j.JobId == jobId);
 
 				if (job is null)
 				{
@@ -98,7 +82,7 @@ public class Worker(ILogger<Worker> logger, IOptions<BackupClientOptions> option
 			for (int i = 0; i < options.Value.Jobs.Length; i++)
 			{
 				var job = options.Value.Jobs[i];
-				var nextExecutionTime = DateTime.Now + job.Interval.ToTimeSpan();
+				var nextExecutionTime = DateTime.UtcNow + job.Interval.ToTimeSpan();
 
 				jobQueue.Enqueue(job, nextExecutionTime);
 				lines[i] = $"{job.JobId}${nextExecutionTime}";
@@ -111,7 +95,7 @@ public class Worker(ILogger<Worker> logger, IOptions<BackupClientOptions> option
 		{
 			if (jobQueue.TryPeek(out var pendingJob, out var executionTime))
 			{
-				var now = DateTime.Now;
+				var now = DateTime.UtcNow;
 
 				logger.LogInformation("Next job '{jobId}' scheduled for {executionTime}, current time is {now}", pendingJob.JobId, executionTime, now);
 

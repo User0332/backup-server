@@ -62,14 +62,14 @@ namespace User0332.Backup.Server.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("CreatedAt")
+                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<byte[]>("EncryptedManifest")
                         .IsRequired()
                         .HasColumnType("BLOB");
 
-                    b.Property<DateTimeOffset>("ExpiresAt")
+                    b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("JobId")

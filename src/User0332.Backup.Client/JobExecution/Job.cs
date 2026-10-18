@@ -77,17 +77,17 @@ public class Job
 			}
 		}
 
-		var snapshotCreationTime = DateTimeOffset.UtcNow;
+		var snapshotCreationTime = DateTime.UtcNow;
 
 		var manifest = new SnapshotManifest
 		{
-			SnapshotTimestamp = snapshotCreationTime.ToUnixTimeSeconds(),
+			SnapshotTimestamp = (snapshotCreationTime - DateTime.UnixEpoch).Ticks / TimeSpan.TicksPerSecond,
 			JobId = _jobId,
 			BasePath = _basePath,
 			Files = [..manifestFiles],
 		};
 
-		DateTimeOffset expiresAt = snapshotCreationTime + _expiryPolicy.MaxAge.ToTimeSpan();
+		DateTime expiresAt = snapshotCreationTime + _expiryPolicy.MaxAge.ToTimeSpan();
 
 		for (int attempt = 0; attempt < MaxRetries; attempt++)
 		{

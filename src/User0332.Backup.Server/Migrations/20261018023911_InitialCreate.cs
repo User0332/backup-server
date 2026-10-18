@@ -33,8 +33,8 @@ namespace User0332.Backup.Server.Migrations
                     ClientId = table.Column<string>(type: "TEXT", nullable: false),
                     JobId = table.Column<string>(type: "TEXT", nullable: false),
                     EncryptedManifest = table.Column<byte[]>(type: "BLOB", nullable: false),
-                    CreatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
-                    ExpiresAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    ExpiresAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {

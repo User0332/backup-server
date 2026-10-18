@@ -10,7 +10,7 @@ services:
       - ASPNETCORE_URLS=http://+:5131
       - ASPNETCORE_ENVIRONMENT=Production
       - BackupStoragePath=/app/data/chunks
-      - ConnectionStrings__BackupServerDb=Data Source=/app/data/backup.db;Journal Mode=WAL;Busy Timeout=5000;
+      - ConnectionStrings__BackupServerDb=Data Source=/app/data/backup.db;
 
     volumes:
       - /DATA/user0332-backup-server/appdata:/app/data
