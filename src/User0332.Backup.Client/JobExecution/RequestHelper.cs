@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Grpc.Net.Client;
-using User0332.Backup.Client.Configuration;
+using User0332.Backup.Shared.ClientOnly.Configuration;
 using User0332.Backup.Shared;
 using User0332.Backup.Shared.ClientOnly;
 

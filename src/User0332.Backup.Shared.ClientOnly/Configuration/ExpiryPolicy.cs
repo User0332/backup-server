@@ -1,4 +1,4 @@
-namespace User0332.Backup.Client.Configuration;
+namespace User0332.Backup.Shared.ClientOnly.Configuration;
 
 public class ExpiryPolicy
 {

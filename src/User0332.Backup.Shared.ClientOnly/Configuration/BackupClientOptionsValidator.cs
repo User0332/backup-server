@@ -1,9 +1,8 @@
 using System.Text.Json;
 using Json.Schema;
 using Microsoft.Extensions.Options;
-using User0332.Backup.Shared;
 
-namespace User0332.Backup.Client.Configuration;
+namespace User0332.Backup.Shared.ClientOnly.Configuration;
 
 public class BackupClientOptionsValidator : IValidateOptions<BackupClientOptions>
 {

@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 using User0332.Backup.Client;
-using User0332.Backup.Client.Configuration;
+using User0332.Backup.Shared.ClientOnly.Configuration;
 using User0332.Backup.Shared;
 
 var builder = Host.CreateApplicationBuilder(args);

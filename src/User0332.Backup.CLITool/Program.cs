@@ -1,11 +1,33 @@
 ﻿using System.Text.Json;
 using Grpc.Net.Client;
-using User0332.Backup.RestorationTool;
+using User0332.Backup.CLITool;
 using User0332.Backup.Shared;
-using User0332.Backup.Shared.ClientOnly;
+using User0332.Backup.Shared.ClientOnly.Configuration;
 using User0332.Backup.Shared.ClientOnly.Models;
 
-var config = JsonSerializer.Deserialize<MinimalConfig>(File.ReadAllText(Constants.BackupClientConfigFilePath))!;
+BackupClientOptions config;
+
+if (!File.Exists(Constants.BackupClientConfigFilePath))
+{
+	Console.WriteLine($"No configuration found at {Constants.BackupClientConfigFilePath}.");
+	Console.WriteLine("Configuration must be initialized before restoring snapshots.");
+	config = ConfigurationActions.InitializeConfig();
+}
+else
+{
+	config = JsonSerializer.Deserialize<BackupClientOptions>(
+		File.ReadAllText(Constants.BackupClientConfigFilePath))
+		?? throw new InvalidOperationException("The backup client configuration is empty.");
+
+	Console.Write("Would you like to edit the backup client configuration? (y/n): ");
+	string? editChoice = Console.ReadLine();
+	if (editChoice is "y" or "Y" or "yes" or "Yes")
+	{
+		ConfigurationActions.Configure(config);
+		Console.WriteLine("Configuration updated. Restart the tool to use the new configuration.");
+		return;
+	}
+}
 
 Console.WriteLine("Welcome to the Backup Restoration Tool!");
 Console.WriteLine("Enter Client ID (optional): ");

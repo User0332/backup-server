@@ -1,7 +1,7 @@
 using System.Text;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Options;
-using User0332.Backup.Client.Configuration;
+using User0332.Backup.Shared.ClientOnly.Configuration;
 using User0332.Backup.Client.JobExecution;
 using User0332.Backup.Shared;
 

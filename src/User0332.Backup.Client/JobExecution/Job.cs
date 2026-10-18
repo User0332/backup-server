@@ -1,10 +1,9 @@
 using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
-using User0332.Backup.Client.Configuration;
+using User0332.Backup.Shared.ClientOnly.Configuration;
 using User0332.Backup.Shared;
 using User0332.Backup.Shared.ClientOnly;
 using User0332.Backup.Shared.ClientOnly.Models;
-using ZstdSharp;
 
 namespace User0332.Backup.Client.JobExecution;
 

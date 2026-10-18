@@ -2,11 +2,12 @@ using System.Security.Cryptography;
 using Grpc.Net.Client;
 using User0332.Backup.Shared;
 using User0332.Backup.Shared.ClientOnly;
+using User0332.Backup.Shared.ClientOnly.Configuration;
 using User0332.Backup.Shared.ClientOnly.Models;
 
-namespace User0332.Backup.RestorationTool;
+namespace User0332.Backup.CLITool;
 
-public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, MinimalConfig config)
+public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, BackupClientOptions config)
 {
 	const int MaxFetchRetries = 4;
 	readonly Restore.RestoreClient _client = new(channel);
@@ -27,7 +28,7 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, M
 
 	public async Task RestoreSnapshot(string snapshotId)
 	{
-		string stagingDirectory = Path.Combine(Path.GetTempPath(), "User0332.Backup.RestorationTool", Guid.NewGuid().ToString());
+		string stagingDirectory = Path.Combine(Path.GetTempPath(), "User0332.Backup.CLITool", Guid.NewGuid().ToString());
 		Directory.CreateDirectory(stagingDirectory);
 
 		SnapshotManifest manifest = null!;
