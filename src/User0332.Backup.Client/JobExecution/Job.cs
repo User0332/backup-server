@@ -59,6 +59,8 @@ public class Job
 
 				using var fileStream = new FileStream(file, FileMode.Open, FileAccess.Read);
 
+				_logger.LogInformation("Processing file {FilePath} (last modified: {LastModified})", relativePath, writeTime);
+
 				var chunkInfo = await TransmitFile(fileStream, relativePath);
 
 				var entry = new ManifestFileEntry
@@ -88,6 +90,8 @@ public class Job
 		};
 
 		DateTime expiresAt = snapshotCreationTime + _expiryPolicy.MaxAge.ToTimeSpan();
+
+		_logger.LogInformation("Transmitting snapshot manifest for job {JobId} with {FileCount} files and {ChunkCount} unique chunks.", JobId, manifestFiles.Count, aggregatedChunkHashes.Count);
 
 		for (int attempt = 0; attempt < MaxRetries; attempt++)
 		{
@@ -145,8 +149,11 @@ public class Job
 
 		if (await _client.ServerAlreadyHasChunk(identityHash))
 		{
+			_logger.LogInformation("Server already has chunk {ChunkHash}, skipping transmission.", identityHash);
 			return new ChunkInfo { Size = chunkLength, IdentityHash = identityHash };
 		}
+
+		_logger.LogInformation("Transmitting chunk {ChunkHash} of size {ChunkSize} bytes.", identityHash, chunkLength);
 
 		for (int attempt = 0; attempt < MaxRetries; attempt++)
 		{

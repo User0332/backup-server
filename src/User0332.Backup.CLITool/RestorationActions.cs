@@ -76,7 +76,12 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, B
 			{
 				if (File.Exists(file.FullPath) && File.GetLastWriteTimeUtc(file.FullPath) == file.LastModified)
 				{
-					preservedFiles.Add(file.FullPath);
+					var destRelPath = manifest.Files.First(f => Path.Combine(manifest.BasePath, f.RelativePath) == file.FullPath).RelativePath;
+					var destPath = Path.Combine(stagingDirectory, destRelPath);
+					Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+
+					File.Copy(file.FullPath, destPath);
+					preservedFiles.Add(destRelPath);
 
 					int offset = 0;
 
@@ -87,7 +92,7 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, B
 
 						if (!chunkFileMap.ContainsKey(identityHash))
 						{
-							chunkFileMap[identityHash] = (file.FullPath, offset, size);
+							chunkFileMap[identityHash] = (destPath, offset, size);
 							offset += size;
 						}
 					}
@@ -99,7 +104,7 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, B
 		{
 			int filePos = 0;
 
-			if (preservedFiles.Contains(Path.Combine(manifest.BasePath, file.RelativePath)))
+			if (preservedFiles.Contains(file.RelativePath))
 			{
 				Console.WriteLine($"Preserving file: {file.RelativePath}");
 				continue;
@@ -120,7 +125,19 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, B
 					using FileStream sourceStream = new(chunkInfo.FileName, FileMode.Open, FileAccess.Read);
 					sourceStream.Seek(chunkInfo.Offset, SeekOrigin.Begin);
 
-					sourceStream.CopyTo(destStream, chunkInfo.Size);
+					int remaining = chunkInfo.Size;
+					byte[] buffer = new byte[Math.Min(81920, remaining)];
+					while (remaining > 0)
+					{
+						int bytesRead = sourceStream.Read(buffer, 0, Math.Min(buffer.Length, remaining));
+						if (bytesRead == 0)
+						{
+							throw new EndOfStreamException($"Chunk data ended before the expected size of {chunkInfo.Size} bytes.");
+						}
+
+						destStream.Write(buffer, 0, bytesRead);
+						remaining -= bytesRead;
+					}
 					sourceStream.Close();
 
 					filePos += chunkInfo.Size;
@@ -142,18 +159,19 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, B
 
 							var request = new DownloadChunkRequest { ChunkHash = chunkHash };
 							var response = _client.DownloadChunk(request);
+							using var encryptedChunk = new MemoryStream();
 
 							while (await response.ResponseStream.MoveNext(CancellationToken.None))
 							{
 								var chunkData = response.ResponseStream.Current.ChunkOfChunk.ToByteArray();
-
-								byte[] decryptedChunk = EncryptionUtils.DecryptData(chunkData, _aes);
-								byte[] decompressedChunk = CompressionUtils.DecompressData(decryptedChunk);
-
-								destStream.Write(decompressedChunk, 0, decompressedChunk.Length);
-
-								filePos += decompressedChunk.Length;
+								encryptedChunk.Write(chunkData, 0, chunkData.Length);
 							}
+
+							byte[] decryptedChunk = EncryptionUtils.DecryptData(encryptedChunk.ToArray(), _aes);
+							byte[] decompressedChunk = CompressionUtils.DecompressData(decryptedChunk);
+
+							destStream.Write(decompressedChunk, 0, decompressedChunk.Length);
+							filePos += decompressedChunk.Length;
 
 							downloaded = true;
 							break;
@@ -195,6 +213,5 @@ public class RestorationActions(BackupClientDbContext db, GrpcChannel channel, B
 		Directory.Move(stagingDirectory, manifest.BasePath);
 
 		Console.WriteLine($"Restoration of snapshot {snapshotId} completed successfully.");
-		Console.WriteLine($"The original directory has been moved to {manifest.BasePath}.old.");
 	}
 }
